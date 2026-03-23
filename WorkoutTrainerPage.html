@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treinos App - Flask & React</title>
+
+    <script crossorigin src="https://unpkg.com/react@16.8.6/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@16.8.6/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://unpkg.com/@material-ui/core@3.9.3/umd/material-ui.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            font-family: "Roboto", sans-serif;
+        }
+
+        .canvas-container {
+            position: relative;
+            height: 220px;
+            width: 100%;
+        }
+
+        .section-paper {
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { AppBar, Toolbar, Typography, Paper, Grid, List, ListItem, ListItemText, Checkbox, Button, CssBaseline, Snackbar } = window['material-ui'];
+
+        function Timer() {
+            const [time, setTime] = React.useState(0);
+            const [isRunning, setIsRunning] = React.useState(false);
+
+            React.useEffect(() => {
+                let interval;
+                if (isRunning) interval = setInterval(() => setTime(t => t + 1), 1000);
+                return () => clearInterval(interval);
+            }, [isRunning]);
+
+            const formatTime = (s) => {
+                const mins = Math.floor(s / 60);
+                const secs = s % 60;
+                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            };
+
+            return (
+                <Paper className="section-paper" style={{ textAlign: 'center' }}>
+                    <Typography variant="h6" color="primary">Cronômetro</Typography>
+                    <Typography variant="h3" style={{ margin: '15px 0', fontWeight: 'bold' }}>{formatTime(time)}</Typography>
+                    <Button variant="contained" color={isRunning ? "secondary" : "primary"} onClick={() => setIsRunning(!isRunning)} style={{ marginRight: 10 }}>
+                        {isRunning ? 'Pausar' : 'Iniciar'}
+                    </Button>
+                    <Button variant="outlined" onClick={() => { setIsRunning(false); setTime(0); }}>Zerar</Button>
+                </Paper>
+            );
+        }
+
+        function Checklist() {
+            const [tasks, setTasks] = React.useState(() => {
+                const saved = localStorage.getItem('treino_check');
+                return saved ? JSON.parse(saved) : [
+                    { id: 1, text: 'Aquecimento (10 min)', done: false },
+                    { id: 2, text: 'Treino de Força', done: false },
+                    { id: 3, text: 'Cardio (20 min)', done: false },
+                    { id: 4, text: 'Alongamento', done: false }
+                ];
+            });
+
+            React.useEffect(() => localStorage.setItem('treino_check', JSON.stringify(tasks)), [tasks]);
+
+            const toggleTask = (id) => setTasks(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
+
+            return (
+                <Paper className="section-paper">
+                    <Typography variant="h6" color="primary">Checklist do Dia</Typography>
+                    <List>
+                        {tasks.map(t => (
+                            <ListItem key={t.id} button onClick={() => toggleTask(t.id)}>
+                                <Checkbox checked={t.done} color="primary" disableRipple />
+                                <ListItemText primary={t.text} style={{ textDecoration: t.done ? 'line-through' : 'none' }} />
+                            </ListItem>
+                        ))}
+                    </List>
+                </Paper>
+            );
+        }
+
+        function ExcelImporter() {
+            const [snackbarOpen, setSnackbarOpen] = React.useState(false);
+            const [snackbarMsg, setSnackbarMsg] = React.useState('');
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const wb = XLSX.read(evt.target.result, { type: 'binary' });
+                    const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+                    fetch('/api/upload-excel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    })
+                        .then(res => res.json())
+                        .then(response => {
+                            setSnackbarMsg(response.mensagem);
+                            setSnackbarOpen(true);
+                            e.target.value = null;
+                        })
+                        .catch(err => {
+                            setSnackbarMsg("Erro ao enviar dados.");
+                            setSnackbarOpen(true);
+                        });
+                };
+                reader.readAsBinaryString(file);
+            };
+
+            return (
+                <Paper className="section-paper">
+                    <Typography variant="h6" color="primary" gutterBottom>Importar Planilha</Typography>
+                    <Typography variant="body2" gutterBottom>Envie seu Excel de treinos para o backend Flask.</Typography>
+                    <br />
+                    <input accept=".xlsx, .xls" style={{ display: 'none' }} id="file-upload" type="file" onChange={handleFileUpload} />
+                    <label htmlFor="file-upload">
+                        <Button variant="contained" component="span" color="default">Selecionar Planilha</Button>
+                    </label>
+                    <Snackbar anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} open={snackbarOpen} autoHideDuration={3000} onClose={() => setSnackbarOpen(false)} message={<span>{snackbarMsg}</span>} />
+                </Paper>
+            );
+        }
+
+        function Dashboard() {
+            const c1Ref = React.useRef(null); const c2Ref = React.useRef(null);
+            const c3Ref = React.useRef(null); const c4Ref = React.useRef(null);
+
+            React.useEffect(() => {
+                const c1 = new Chart(c1Ref.current, { type: 'bar', data: { labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'], datasets: [{ label: 'Horas', data: [1, 2, 1.5, 2, 1], backgroundColor: '#3f51b5' }] }, options: { maintainAspectRatio: false } });
+                const c2 = new Chart(c2Ref.current, { type: 'line', data: { labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'], datasets: [{ label: 'Carga (kg)', data: [50, 55, 60, 62], borderColor: '#f50057', fill: false }] }, options: { maintainAspectRatio: false } });
+                const c3 = new Chart(c3Ref.current, { type: 'pie', data: { labels: ['Peito', 'Costas', 'Pernas', 'Ombros'], datasets: [{ data: [30, 30, 25, 15], backgroundColor: ['#ff6384', '#36a2eb', '#cc65fe', '#ffce56'] }] }, options: { maintainAspectRatio: false } });
+                const c4 = new Chart(c4Ref.current, { type: 'doughnut', data: { labels: ['Treino', 'Descanso'], datasets: [{ data: [20, 10], backgroundColor: ['#4bc0c0', '#eaeaea'] }] }, options: { maintainAspectRatio: false } });
+
+                return () => { c1.destroy(); c2.destroy(); c3.destroy(); c4.destroy(); };
+            }, []);
+
+            return (
+                <div>
+                    <Typography variant="h5" style={{ marginBottom: 20 }}>Dashboard de Resultados</Typography>
+                    <Grid container spacing={24}>
+                        <Grid item xs={12} md={6}><Paper className="section-paper"><div className="canvas-container"><canvas ref={c1Ref}></canvas></div></Paper></Grid>
+                        <Grid item xs={12} md={6}><Paper className="section-paper"><div className="canvas-container"><canvas ref={c2Ref}></canvas></div></Paper></Grid>
+                        <Grid item xs={12} md={6}><Paper className="section-paper"><div className="canvas-container"><canvas ref={c3Ref}></canvas></div></Paper></Grid>
+                        <Grid item xs={12} md={6}><Paper className="section-paper"><div className="canvas-container"><canvas ref={c4Ref}></canvas></div></Paper></Grid>
+                    </Grid>
+                </div>
+            );
+        }
+
+        function App() {
+            return (
+                <React.Fragment>
+                    <CssBaseline />
+                    <AppBar position="static" color="primary">
+                        <Toolbar><Typography variant="h6" color="inherit">Flask & React - Treinos</Typography></Toolbar>
+                    </AppBar>
+                    <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
+                        <Grid container spacing={24}>
+                            <Grid item xs={12} md={4}>
+                                <Timer />
+                                <Checklist />
+                                <ExcelImporter />
+                            </Grid>
+                            <Grid item xs={12} md={8}>
+                                <Dashboard />
+                            </Grid>
+                        </Grid>
+                    </div>
+                </React.Fragment>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+
+</html>
