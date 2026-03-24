@@ -1,73 +1,11 @@
-<# :
-@echo off
-chcp 65001 >nul
-echo ======================================================
-echo Criando estrutura do projeto treinos-flask-app...
-echo Aguarde, gravando todos os codigos nos arquivos...
-echo ======================================================
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression $([System.IO.File]::ReadAllText('%~f0'))"
-echo ======================================================
-echo Tudo pronto! Arquivos criados com sucesso.
-echo Entre na pasta 'treinos-flask-app' e rode: python app.py
-echo ======================================================
-pause
-goto :eof
-#>
-
-$ErrorActionPreference = "Stop"
-
-# Cria as pastas do projeto
-New-Item -ItemType Directory -Force -Path "treinos-flask-app\templates" | Out-Null
-New-Item -ItemType Directory -Force -Path "treinos-flask-app\static" | Out-Null
-
-# --- Gravando app.py ---
-$appCode = @'
-from flask import Flask, render_template
-from api import api_bp
-
-app = Flask(__name__)
-app.register_blueprint(api_bp, url_prefix='/api')
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-if __name__ == '__main__':
-    print("Iniciando o servidor Flask em http://localhost:5000")
-    app.run(debug=True, port=5000)
-'@
-Set-Content -Path "treinos-flask-app\app.py" -Value $appCode -Encoding UTF8
-
-# --- Gravando api.py ---
-$apiCode = @'
-from flask import Blueprint, request, jsonify
-
-api_bp = Blueprint('api', __name__)
-
-@api_bp.route('/upload-excel', methods=['POST'])
-def upload_excel():
-    try:
-        dados_excel = request.json
-        quantidade_linhas = len(dados_excel) if dados_excel else 0
-        print(f"Recebidas {quantidade_linhas} linhas do Excel via Blueprint!")
-        return jsonify({
-            "status": "sucesso", 
-            "mensagem": f"{quantidade_linhas} registros processados com sucesso!"
-        }), 200
-    except Exception as e:
-        return jsonify({"status": "erro", "mensagem": str(e)}), 400
-'@
-Set-Content -Path "treinos-flask-app\api.py" -Value $apiCode -Encoding UTF8
-
-# --- Gravando index.html ---
-$htmlCode = @'
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Treinos App - Flask & React</title>
-    
+
     <script crossorigin src="https://unpkg.com/react@16.8.6/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@16.8.6/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
@@ -75,12 +13,30 @@ $htmlCode = @'
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
+
+
     <style>
-        body { margin: 0; padding: 0; background-color: #f5f5f5; font-family: "Roboto", sans-serif; }
-        .canvas-container { position: relative; height: 220px; width: 100%; }
-        .section-paper { padding: 20px; margin-bottom: 20px; border-radius: 8px; }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            font-family: "Roboto", sans-serif;
+        }
+
+        .canvas-container {
+            position: relative;
+            height: 220px;
+            width: 100%;
+        }
+
+        .section-paper {
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
     </style>
 </head>
+
 <body>
     <div id="root"></div>
 
@@ -104,10 +60,10 @@ $htmlCode = @'
             };
 
             return (
-                <Paper className="section-paper" style={{ textAlign: 'center' }}>
+                <Paper className="section-paper" >
                     <Typography variant="h6" color="primary">Cronômetro</Typography>
-                    <Typography variant="h3" style={{ margin: '15px 0', fontWeight: 'bold' }}>{formatTime(time)}</Typography>
-                    <Button variant="contained" color={isRunning ? "secondary" : "primary"} onClick={() => setIsRunning(!isRunning)} style={{ marginRight: 10 }}>
+                    <Typography variant="h3" >{formatTime(time)}</Typography>
+                    <Button variant="contained" color={isRunning ? "secondary" : "primary"} onClick={() => setIsRunning(!isRunning)} >
                         {isRunning ? 'Pausar' : 'Iniciar'}
                     </Button>
                     <Button variant="outlined" onClick={() => { setIsRunning(false); setTime(0); }}>Zerar</Button>
@@ -137,7 +93,7 @@ $htmlCode = @'
                         {tasks.map(t => (
                             <ListItem key={t.id} button onClick={() => toggleTask(t.id)}>
                                 <Checkbox checked={t.done} color="primary" disableRipple />
-                                <ListItemText primary={t.text} style={{ textDecoration: t.done ? 'line-through' : 'none' }} />
+                                <ListItemText primary={t.text} />
                             </ListItem>
                         ))}
                     </List>
@@ -151,28 +107,28 @@ $htmlCode = @'
 
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
-                if(!file) return;
+                if (!file) return;
 
                 const reader = new FileReader();
                 reader.onload = (evt) => {
                     const wb = XLSX.read(evt.target.result, { type: 'binary' });
                     const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                    
+
                     fetch('/api/upload-excel', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data)
                     })
-                    .then(res => res.json())
-                    .then(response => {
-                        setSnackbarMsg(response.mensagem);
-                        setSnackbarOpen(true);
-                        e.target.value = null;
-                    })
-                    .catch(err => {
-                        setSnackbarMsg("Erro ao enviar dados.");
-                        setSnackbarOpen(true);
-                    });
+                        .then(res => res.json())
+                        .then(response => {
+                            setSnackbarMsg(response.mensagem);
+                            setSnackbarOpen(true);
+                            e.target.value = null;
+                        })
+                        .catch(err => {
+                            setSnackbarMsg("Erro ao enviar dados.");
+                            setSnackbarOpen(true);
+                        });
                 };
                 reader.readAsBinaryString(file);
             };
@@ -182,11 +138,12 @@ $htmlCode = @'
                     <Typography variant="h6" color="primary" gutterBottom>Importar Planilha</Typography>
                     <Typography variant="body2" gutterBottom>Envie seu Excel de treinos para o backend Flask.</Typography>
                     <br />
-                    <input accept=".xlsx, .xls" style={{ display: 'none' }} id="file-upload" type="file" onChange={handleFileUpload} />
+                    <input accept=".xlsx, .xls" id="file-upload" type="file" onChange={handleFileUpload} />
                     <label htmlFor="file-upload">
                         <Button variant="contained" component="span" color="default">Selecionar Planilha</Button>
                     </label>
-                    <Snackbar anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} open={snackbarOpen} autoHideDuration={3000} onClose={() => setSnackbarOpen(false)} message={<span>{snackbarMsg}</span>} />
+
+
                 </Paper>
             );
         }
@@ -206,7 +163,7 @@ $htmlCode = @'
 
             return (
                 <div>
-                    <Typography variant="h5" style={{ marginBottom: 20 }}>Dashboard de Resultados</Typography>
+                    <Typography variant="h5">Dashboard de Resultados</Typography>
                     <Grid container spacing={24}>
                         <Grid item xs={12} md={6}><Paper className="section-paper"><div className="canvas-container"><canvas ref={c1Ref}></canvas></div></Paper></Grid>
                         <Grid item xs={12} md={6}><Paper className="section-paper"><div className="canvas-container"><canvas ref={c2Ref}></canvas></div></Paper></Grid>
@@ -224,7 +181,7 @@ $htmlCode = @'
                     <AppBar position="static" color="primary">
                         <Toolbar><Typography variant="h6" color="inherit">Flask & React - Treinos</Typography></Toolbar>
                     </AppBar>
-                    <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
+                    <div >
                         <Grid container spacing={24}>
                             <Grid item xs={12} md={4}>
                                 <Timer />
@@ -243,6 +200,5 @@ $htmlCode = @'
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
+
 </html>
-'@
-Set-Content -Path "treinos-flask-app\templates\index.html" -Value $htmlCode -Encoding UTF8
